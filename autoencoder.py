@@ -17,10 +17,14 @@ def stylize(level, content, style0, encoders, decoders, alpha, svd_device, cnn_d
     with torch.no_grad():
         if mask_mode:
             cf = encoders[level](content).data.to(device=svd_device).squeeze(0)
+            log.debug('mask-mode: content features size: ' + str(cf.size()))
             s0f = encoders[level](style0).data.to(device=svd_device).squeeze(0)
-            s1f = encoders[level](style1).data.to(device=svd_device).squeeze(0)
-            log.debug('mask-mode: content features size: ' + str(cf.size()) + ', style 0 features size: ' + str(s0f.size()) + ', style 1 features size: ' + str(s1f.size()))
-
+            log.debug('style 0 features size: ' + str(s0f.size()))
+            if style1 is not None:
+                s1f = encoders[level](style1).data.to(device=svd_device).squeeze(0)
+                log.debug('style 1 features size: ' + str(s1f.size()))
+            else:
+                s1f = None
             cf_channels, cf_width, cf_height = cf.size(0), cf.size(1), cf.size(2)
             mask = transforms.to_tensor(transforms.resize(mask, (cf_height, cf_width), interpolation=PIL.Image.NEAREST))
 
@@ -35,7 +39,12 @@ def stylize(level, content, style0, encoders, decoders, alpha, svd_device, cnn_d
             cf_bground_masked = torch.index_select(cf_view, 1, background_mask_ix.view(-1)).view(cf_channels, background_mask_ix.nelement())
 
             csf_fground = wct_mask(cf_fground_masked, s0f)
-            csf_bground = wct_mask(cf_bground_masked, s1f)
+            log.debug('fusion foreground features size: ' + str(csf_fground.size()))
+            if style1 is not None:
+                csf_bground = wct_mask(cf_bground_masked, s1f)
+            else:
+                csf_bground = wct_mask(cf_bground_masked, cf)
+            log.debug('fusion background features size: ' + str(csf_bground.size()))
 
             csf = torch.zeros_like(cf_view)
             csf.index_copy_(1, foreground_mask_ix.view(-1), csf_fground)
@@ -62,6 +71,7 @@ def stylize(level, content, style0, encoders, decoders, alpha, svd_device, cnn_d
 
         return decoders[level](csf)
 
+
 class SingleLevelWCT(nn.Module):
 
     def __init__(self, args):
@@ -78,7 +88,6 @@ class SingleLevelWCT(nn.Module):
         else:
             self.mask_mode = False
             self.mask = None
-
 
         self.e5 = Encoder(5)
         self.encoders = [self.e5]
@@ -136,6 +145,6 @@ class MultiLevelWCT(nn.Module):
                                       self.cnn_device, interpolation_beta=self.beta, style1=style_img1, mask_mode=self.mask_mode, mask=self.mask)
             else:
                 content_img = stylize(i, content_img, style_img, self.encoders, self.decoders, self.alpha, self.svd_device,
-                                      self.cnn_device)
+                                      self.cnn_device, mask_mode=self.mask_mode, mask=self.mask)
 
         return content_img
