@@ -1,4 +1,5 @@
-import os
+import pathlib
+import itertools
 import torch
 from log_utils import get_logger
 from im_utils import load_img
@@ -7,8 +8,8 @@ from torch.utils.data import Dataset
 log = get_logger()
 supported_img_formats = ('.png', '.jpg', '.jpeg')
 
-class ContentStylePairDataset(Dataset):
 
+class ContentStylePairDataset(Dataset):
     def __init__(self, args):
         super(Dataset, self).__init__()
 
@@ -16,15 +17,23 @@ class ContentStylePairDataset(Dataset):
         self.contentSize = args.contentSize
         self.styleSize = args.styleSize
 
-        if args.style.endswith(supported_img_formats):
-            self.pairs_fn = [('texture', args.style) if args.synthesis else (args.content, args.style)]
+        style_files = self.__get_files__(args.style)
+        if not args.synthesis:
+            content_files = self.__get_files__(args.content)
+            self.pairs_fn = list(itertools.product([str(x) for x in content_files], [str(x) for x in style_files]))
         else:
-            self.pairs_fn = []
-            for c in os.listdir(args.content):
-                for s in os.listdir(args.style):
-                    path_pair = (os.path.join(args.content, ('texture' if args.synthesis else c)), os.path.join(args.style, s))
-                    log.info('Adding: ' + str(path_pair) + ' to the dataset')
-                    self.pairs_fn.append(path_pair)
+            self.pairs_fn = [('texture', str(x)) for x in style_files]
+        log.debug(f'Added pairs "{self.pairs_fn}" to the dataset')
+
+    def __get_files__(self, file_str):
+        file_path = pathlib.Path(file_str)
+        if file_path.is_dir():
+            files = [x for x in file_path.iterdir() if x.is_file() and x.suffix.lower() in supported_img_formats]
+        elif file_path.is_file():
+            files = [file_path]
+        else:
+            raise RuntimeError("Content files are not accessible.")
+        return files
 
     def __len__(self):
         return len(self.pairs_fn)

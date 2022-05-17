@@ -22,7 +22,7 @@ def parse_args():
     parser.add_argument('--stylePair', help='Path of two style images (separated by ",") to use in combination')
     parser.add_argument('--mask', help='Path of the binary mask image (white on black) to trasfer the style pair in the corrisponding areas')
 
-    parser.add_argument('--contentSize', type=int, help='Reshape content image to have the new specified maximum size (keeping aspect ratio)') # default=768 in the paper
+    parser.add_argument('--contentSize', type=int, help='Reshape content image to have the new specified maximum size (keeping aspect ratio)')  # default=768 in the paper
     parser.add_argument('--styleSize', type=int, help='Reshape style image to have the new specified maximum size (keeping aspect ratio)')
 
     parser.add_argument('--outDir', default='outputs', help='Path of the directory where stylized results will be saved')
@@ -40,7 +40,7 @@ def validate_args(args):
     supported_img_formats = ('.png', '.jpg', '.jpeg')
 
     # assert that we have a combinations of cli args meaningful to perform some task
-    assert((args.content and args.style)   or (args.content and args.stylePair) or (args.style and args.synthesis) or (args.stylePair and args.synthesis) or (args.mask and args.content and args.stylePair))
+    assert((args.content and args.style) or (args.content and args.stylePair) or (args.style and args.synthesis) or (args.stylePair and args.synthesis) or (args.mask and args.content and args.stylePair))
 
     if args.content:
         if os.path.isfile(args.content) and os.path.splitext(args.content)[-1].lower().endswith(supported_img_formats):
@@ -104,8 +104,10 @@ def validate_args(args):
 
 def save_image(img, content_name, style_name, out_ext, args):
     torchvision.utils.save_image(img.cpu().detach().squeeze(0),
-     os.path.join(args.outDir,
-      (args.outPrefix + '_' if args.outPrefix else '') + content_name + '_stylized_by_' + style_name + '_alpha_' + str(int(args.alpha*100)) + '.' + out_ext))
+                                 os.path.join(args.outDir,
+                                              (args.outPrefix + '_' if args.outPrefix else '')
+                                              + content_name + '_stylized_by_' + style_name + '_alpha_'
+                                              + str(int(args.alpha * 100)) + '.' + out_ext))
 
 
 def main():
@@ -123,7 +125,8 @@ def main():
         log.info('Utilizing the cpu for computations')
         args.device = torch.device('cpu')
 
-    if args.synthesis:  args.alpha = 1.0
+    if args.synthesis:
+        args.alpha = 1.0
 
     if args.stylePair:
         log.info('Creating content and (two) styles triplets dataset object')
@@ -143,7 +146,7 @@ def main():
     model.eval()
 
     for i, sample in enumerate(dataloader):
-        log.info('Starting ' + str(i) + '/'+ str(len(dataloader)) + ' stylization iteration')
+        log.info('Starting ' + str(i) + '/' + str(len(dataloader)) + ' stylization iteration')
 
         if args.stylePair:
             log.info('content: ' + str(sample['contentPath']) + '\tstyle 1: ' + str(sample['style0Path']) + '\tstyle 2: ' + str(sample['style1Path']))
@@ -188,9 +191,10 @@ def main():
                 out = model(content, style)
                 end = timer()
                 log.info('Wall-clock time took for stylization: ' + str(end - start) + 's')
-                # save_image(out, c_basename, s_basename, c_ext, args)
+                save_image(out, c_basename, s_basename, c_ext, args)
 
     log.info('Stylization completed, exiting.')
+
 
 if __name__ == "__main__":
     main()
